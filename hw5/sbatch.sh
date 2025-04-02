@@ -10,7 +10,7 @@
 #SBATCH --mem=16G
 
 source ~/.bashrc
-conda activate ssm_hw5 # activate the Python environment
+conda activate hw # activate the Python environment
 
 # runs your code
 python -u main.py

@@ -41,12 +41,14 @@ class CausalSelfAttention(nn.Module):
         #   Name the matrix `causal_mask` and then expand the mask for the batch and head dimensions
         
 
+        causal_mask = torch.tril(torch.ones(config.block_size, config.block_size))
+        causal_mask = causal_mask.unsqueeze(0).unsqueeze(0) 
 
         # your code ends here
         
         # register the mask as a buffer so it's not updated as a model parameter
         # but can still be used in the forward pass & saved to the state_dict
-        self.register_buffer("causal_mask", casual_mask)
+        self.register_buffer("causal_mask", causal_mask)
         self.n_head = config.n_head
         self.n_embd = config.n_embd
 
@@ -54,7 +56,27 @@ class CausalSelfAttention(nn.Module):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
 
         # TODO: implement the forward pass of the casual self-attention layer.
-        
+        qkv = self.c_attn(x)  
+        q, k, v = qkv.split(self.n_embd, dim=2)
+
+        head_dim = C // self.n_head
+        q = q.view(B, T, self.n_head, head_dim).transpose(1, 2) 
+        k = k.view(B, T, self.n_head, head_dim).transpose(1, 2)
+        v = v.view(B, T, self.n_head, head_dim).transpose(1, 2)
+
+        att = (q @ k.transpose(-2, -1)) / math.sqrt(head_dim)  
+
+        att = att.masked_fill(self.causal_mask[:, :, :T, :T] == 0, float('-inf'))
+
+
+        att = F.softmax(att, dim=-1)
+        att = self.attn_dropout(att)
+
+        y = att @ v  
+        y = y.transpose(1, 2).contiguous().view(B, T, C) 
+
+        y = self.c_proj(y)
+        y = self.resid_dropout(y)
 
         return y
 
